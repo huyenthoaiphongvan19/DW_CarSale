@@ -1,0 +1,166 @@
+﻿//PIVOT
+//cau 1 Liệt kê các mẫu xe đã được nhập?
+SELECT non empty [Dim Cars].[Make].Members on columns, non empty [Dim Cars].[Model].Members on rows FROM [Car Sale];
+//-----
+SELECT non empty [Dim Cars].[Make].Members on rows, non empty [Dim Cars].[Model].Members on columns FROM [Car Sale];
+
+// FILTER
+//cau 2. Liet ke nhung mau xe có giá trên 10000USD 
+
+SELECT non empty {[Dim Cars].[Model].Members} on columns,
+non empty filter(
+[Dim Category].[Badge].Members,
+[Measures].[Total Price] > 10000
+	  )	on Rows
+FROM[Car Sale];
+
+// FILTER
+//cau 3. Liệt kê huy hiệu, mẫu xe, đã qua sử dụng (category = used) có giá tiền nhỏ hơn 5k USD?
+
+SELECT non empty {[Dim Cars].[Model].Members} on columns,
+non empty filter(
+[Dim Category].[Badge].Members,
+[Measures].[Total Price] < 5000
+	  )	on Rows
+FROM[Car Sale] 
+WHERE [Dim Status].[Category].&[Used];
+
+
+
+//cau 4. Liệt kê các Huy hiệu, Mẫu xe riêng tư (category = private) được mua lại vào năm 2018 (YEAR(acquisition_date)=2018)?
+ 
+SELECT non empty [Dim Cars].[Model].Members on columns, 
+[Dim Category].[Badge].Members on rows
+FROM [Car Sale]
+WHERE [Dim Status].[Category].&[Private] & [Dim Time].[Year].&[2018];
+
+
+//cau 5. Tổng Chi phí nhập xe toyota vào năm 2018?
+
+SELECT [Measures].[Total Price] on columns,
+    [Dim Cars].[Make].&[Toyota] on rows
+FROM[Car Sale] WHERE [Dim Time].[Year].&[2018];
+
+//6. Liệt kê các xe body SUV  có màu đen (colour = X)?
+//Model,Badge, Make ,(colour = Gold,Black) (body_type=SUV)  (Category)
+
+SELECT non empty [Dim Category].[Body Type].&[SUV] on columns,
+[Dim Category].[Badge].Members on rows
+FROM [Car Sale] WHERE [Dim Category].[Colour].&[Black] ;
+
+
+// FILTER
+//7. Liệt kê các xe máy dầu có dung tích lớn hơn 2.0?
+//Litres > 2.0, Fuel = Disiel, Body Type, Badge,Model
+SELECT non empty [Dim Cars].[Model].Members on columns,
+non empty filter(
+[Dim Category].[Badge].Members,
+[Dim Category].[Litres] > 2.0
+	  )	on Rows
+FROM [Car Sale]  
+WHERE [Dim Category].[Fuel].&[Diesel]
+;
+
+// CROSSJOIN
+//8. Liệt kê tất cả các xe có hộp số sàn?
+//Badge,Model,Transitsion= Manual
+SELECT non empty {[Dim Category].[Transmission].&[Manual]} ON 0,
+non empty CROSSJOIN( 
+{[Dim Cars].[Model].Members}
+,
+{[Dim Category].[Badge].Members}
+)
+ON 1
+FROM [Car Sale]
+;
+
+// ORDER
+//9. Liệt kê các mẫu xe , badge theo giá giảm dần nhập vào năm 2018?
+//model =Forester,Impreza ,RAV4; Model,Badge,(category = demo)
+SELECT 
+Order(
+[Dim Category].[Badge].Members,
+[Measures].[Total Price],
+DESC
+) on Rows,
+non empty {[Measures].[Total Price]} on columns
+FROM[Car Sale] WHERE [Dim Time].[Year].&[2018];
+
+
+//ROLL UP
+//10. Tổng chi phí nhập xe (liệt kê theo ROLL UP) ?
+//ROLL UP (DATE)
+SELECT non empty {[Dim Time].[Year].&[2017]} ON 0,
+non empty CROSSJOIN( 
+{[Dim Time].[Month].Members}
+,
+{[Dim Time].[date].Members}
+)
+ON 1
+FROM [Car Sale];
+
+//ROLL UP (MONTH)
+select non empty [Dim Time].[Year].&[2017] on columns,non empty [Dim Time].[Month].Members on rows from [Car Sale];
+//ROLL UP (YEAR) 
+select non empty [Measures].[Total Price] on columns, non empty[Dim Time].[Year].Members on rows from [Car Sale];
+
+
+// DRILL DOWN
+//11. Thong ke số lượng xe nhập vào (thống kê theo DRILL DOWN) ?
+//drill down (year)
+ select [Measures].[Imported car] on columns, non empty [Dim Time].[Year].Members on rows from [Car Sale];
+
+// drill down (month of year = 2018) 
+select [Measures].[Imported car] on columns,[Dim Time].[Month].Members on rows from [Car Sale]
+where [Dim Time].[Year].&[2018];
+
+// drill down (date of year = 2018)
+SELECT {[Measures].[Imported car]} ON 0,
+non empty CROSSJOIN( 
+{[Dim Time].[Month].Members}
+,
+{[Dim Time].[date].Members}
+)
+ON 1
+FROM [Car Sale] where [Dim Time].[Year].&[2018];
+
+//SLICE & DICE
+//12 Liệt kê các mẫu xe chạy bằng dầu hoặc xăng	
+SELECT {[Dim Category].[Fuel].&[Diesel],[Dim Category].[Fuel].&[Unleaded]} ON 0,
+non empty CROSSJOIN( 
+{[Dim Cars].[Model].Members}
+,
+{[Dim Category].[Badge].Members}
+)
+ON 1
+FROM [Car Sale];
+
+//TOPCOUNT()
+//13 Liệt kê 5 mẫu xe giá bán cao nhất của Toyota
+SELECT {[Measures].[Total Price]} ON columns,
+topcount(
+ CROSSJOIN( 
+  {[Dim Cars].[Model].children}
+  ,
+  {[Dim Category].[Badge].children}
+  ),5,[Measures].[Total Price]) on rows
+FROM [Car Sale] WHERE [Dim Cars].[Make].&[Toyota];
+
+//TOPCOUNT()
+//14 Tháng có chi phí nhập xe nhiều nhất trong năm 2017
+SELECT {[Measures].[Total Price]} ON columns,
+topcount([Dim Time].[Month].children,1,[Measures].[Total Price]) on rows
+FROM [Car Sale] WHERE [Dim Time].[Year].&[2017];
+
+//15 Liệt kê các mẫu xe ít số km nhỏ hơn 10000 và có giá tăng dần
+SELECT [Measures].[Total Price] on columns,
+  Non empty Order(
+               filter(
+                    CROSSJOIN( 
+                      {[Dim Cars].[Model].children} ,
+                      {[Dim Category].[Badge].children}
+                       ),
+                        [Dim Status].[Odometer] < 10000
+	                  ) ,[Measures].[Total Price],ASC
+                 ) on Rows
+FROM[Car Sale] 
